@@ -1,1 +1,2 @@
-include ':app', ':coverflowsample'
+include ':app'
+include ':coverflowsample'
