@@ -1,21 +1,16 @@
 # ImageCoverFlow
 
-#### A beautiful cover flow on Android
-
 ImageCoverFlow allows you to show images as a cover flow. See the screenshot below.
 
 Forked from [dolphinwang/ImageCoverFlow](https://github.com/dolphinwang/ImageCoverFlow).
 
-
 ![Oops! The screenshot is missing!](https://github.com/xszconfig/ImageCoverFlow/raw/master/imagecoverflow_screenshot.png)
-
----
 
 # How to Use:
 
-#### Step One: Add `CoverFlowView` to your project
+### Step 1: Add `CoverFlowView` to your project
 
-1. Via XML:
+a. Via XML:
 
 ```xml
 <com.dolphinwang.imagecoverflow.CoverFlowView
@@ -27,25 +22,16 @@ Forked from [dolphinwang/ImageCoverFlow](https://github.com/dolphinwang/ImageCov
     android:paddingRight="20dp"
     imageCoverFlow:coverflowGravity="center_vertical"
     imageCoverFlow:coverflowLayoutMode="wrap_content"
-    imageCoverFlow:enableReflection="true"
-    imageCoverFlow:reflectionGap="10dp"
-    imageCoverFlow:reflectionHeight="30%"
-    imageCoverFlow:reflectionShaderEnable="true"
     imageCoverFlow:visibleImage="5" />
 ```
 
-2. Programatically (via Java):
+b. Programatically (via Java):
 
 ```java
 CoverFlowView<MyCoverFlowAdapter> mCoverFlowView =
     (CoverFlowView<MyCoverFlowAdapter>) findViewById(R.id.coverflow);
-
 mCoverFlowView.setCoverFlowGravity(CoverFlowGravity.CENTER_VERTICAL);
 mCoverFlowView.setCoverFlowLayoutMode(CoverFlowLayoutMode.WRAP_CONTENT);
-mCoverFlowView.enableReflection(true);
-mCoverFlowView.setReflectionHeight(30);
-mCoverFlowView.setReflectionGap(20);
-mCoverFlowView.enableReflectionShader(true);
 mCoverFlowView.setVisibleImage(5);
 ```
 
@@ -53,7 +39,7 @@ mCoverFlowView.setVisibleImage(5);
 
 ---
 
-#### Step Two: Set an adapter, which extends `CoverFlowAdapter`:
+#### Step 2: Set an adapter, which extends `CoverFlowAdapter`:
 
 ```java
 MyCoverFlowAdapter adapter = new MyCoverFlowAdapter(this);
@@ -64,7 +50,7 @@ mCoverFlowView.setAdapter(adapter);
 * Method `setAdapter()` should be called after all properties of CoverFlow are settled.
 * If you want to load image dynamically, you can call method `notifyDataSetChanged()` when bitmaps are loaded.
 
-#### Step Three: if you want to listen for the click event of the top image, you can set a `CoverFlowListener` to it:
+#### Step 3: set a `CoverFlowListener` to get click event of the top image:
 
 ```java
 mCoverFlowView.setCoverFlowListener(new CoverFlowListener<MyCoverFlowAdapter>() {
@@ -81,7 +67,7 @@ mCoverFlowView.setCoverFlowListener(new CoverFlowListener<MyCoverFlowAdapter>() 
 });
 ```
 
-If you want to listen for long click events of the top image, you can set a `TopImageLongClickListener` to it:
+Long click events of the top image is also supported:
 
 ```java
 mCoverFlowView
@@ -95,16 +81,7 @@ mCoverFlowView
 
 Users can use method `setSelection()` to show a specific position at the top.
 
----
-
-#### If you want to subclass `CoverFlowView`
-
-1. You can override method `getCustomTransformMatrix()` to make more transformations for images (there is some annotated code which shows how to make image y-axis rotation).
-2. You should never override method `onLayout()` to layout any of `CoverFlowView`’s children, because all of image will draw on the canvas directly.
-
----
-
-#### License:
+## License
 
 Copyright 2016 Daniel Xie (xszconfig@gmail.com)
 
