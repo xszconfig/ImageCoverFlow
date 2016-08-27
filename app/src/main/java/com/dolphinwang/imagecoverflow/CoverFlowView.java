@@ -26,7 +26,7 @@ import android.graphics.Paint;
 import android.graphics.PaintFlagsDrawFilter;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.os.Build;
+import android.support.v4.graphics.BitmapCompat;
 import android.support.v4.util.LruCache;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -44,6 +44,7 @@ import android.widget.Scroller;
  * @time 2013-11-29
  */
 public class CoverFlowView<T extends CoverFlowAdapter> extends View {
+    public static final String TAG = CoverFlowView.class.getSimpleName();
 
     public enum CoverFlowGravity {
         TOP, BOTTOM, CENTER_VERTICAL
@@ -53,22 +54,19 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         MATCH_PARENT, WRAP_CONTENT
     }
 
-    /****
-     * static field
-     ****/
-    private static final String VIEW_LOG_TAG = "CoverFlowView";
-
     private static final int DURATION = 200;
 
     protected final int INVALID_POSITION = -1;
 
-    protected static final int DEFAULT_VISIBLE_IMAGES = 3;
+    public static final int MIN_VISIBLE_IMAGES = 3;
+
+    protected static final int DEFAULT_VISIBLE_COUNT_EACH_SIDE = 3;
 
     // Used to indicate a no preference for a position type.
     static final int NO_POSITION = -1;
 
-    // the visible views left and right
-    protected int mVisibleImages = DEFAULT_VISIBLE_IMAGES;
+    // visible view count on left/right side, excluding the middle one
+    protected int mHalfVisibleImageCount = DEFAULT_VISIBLE_COUNT_EACH_SIDE;
 
     // space between each two of children
     protected final int CHILD_SPACING = -200;
@@ -81,14 +79,11 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     private static float MOVE_POS_MULTIPLE = 3.0f;
     private static final int TOUCH_MINIMUM_MOVE = 5;
     private static final float MOVE_SPEED_MULTIPLE = 1;
-    private static final float MAX_SPEED = 6.0f;
-    private static final float FRICTION = 10.0f;
+    private static final float MAX_SPEED = 10.0f;
+    private static final float FRICTION = 8.0f;
 
     private static final int LONG_CLICK_DELAY = ViewConfiguration
-            .getLongPressTimeout();
-    /****
-     * static field
-     ****/
+        .getLongPressTimeout();
 
     private RecycleBin mRecycler;
     protected int mCoverFlowCenter;
@@ -162,15 +157,16 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         @Override
         public void onChanged() {
-            final int nextItemCount = mAdapter.getCount();
+            final int newItemCount = mAdapter.getCount();
 
-            // If current index of top image will larger than total count in future,
+            // If current index of top image is bigger than new total count,
             // locate it to new mid.
-            if (mTopImageIndex % mItemCount > nextItemCount - 1) {
-                mOffset = nextItemCount - mVisibleImages - 1;
-            } else { // If current index top top image will less than total count in future,
+            if (mTopImageIndex % mItemCount > newItemCount - 1) {
+                mOffset = newItemCount - mHalfVisibleImageCount - 1;
+            } else {
+                // If current index of top image is smaller than new total count,
                 // change mOffset to current state in first loop
-                mOffset += mVisibleImages;
+                mOffset += mHalfVisibleImageCount;
                 while (mOffset < 0 || mOffset >= mItemCount) {
                     if (mOffset < 0) {
                         mOffset += mItemCount;
@@ -178,10 +174,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                         mOffset -= mItemCount;
                     }
                 }
-                mOffset -= mVisibleImages;
+                mOffset -= mHalfVisibleImageCount;
             }
 
-            mItemCount = nextItemCount;
+            mItemCount = newItemCount;
             resetCoverFlow();
 
             requestLayout();
@@ -216,28 +212,28 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
     private void initAttributes(Context context, AttributeSet attrs) {
         TypedArray a = context.obtainStyledAttributes(attrs,
-                R.styleable.ImageCoverFlowView);
+            R.styleable.ImageCoverFlowView);
 
         int totalVisibleChildren = a.getInt(
-                R.styleable.ImageCoverFlowView_visibleImage, 3);
+            R.styleable.ImageCoverFlowView_visibleImage, 3);
         setVisibleImage(totalVisibleChildren);
 
         reflectHeightFraction = a.getFraction(
-                R.styleable.ImageCoverFlowView_reflectionHeight, 100, 0, 0.0f);
+            R.styleable.ImageCoverFlowView_reflectionHeight, 100, 0, 0.0f);
         if (reflectHeightFraction > 100) {
             reflectHeightFraction = 100;
         }
         reflectHeightFraction /= 100;
         reflectGap = a.getDimensionPixelSize(
-                R.styleable.ImageCoverFlowView_reflectionGap, 0);
+            R.styleable.ImageCoverFlowView_reflectionGap, 0);
 
         mGravity = CoverFlowGravity.values()[a.getInt(
-                R.styleable.ImageCoverFlowView_coverflowGravity,
-                CoverFlowGravity.CENTER_VERTICAL.ordinal())];
+            R.styleable.ImageCoverFlowView_coverflowGravity,
+            CoverFlowGravity.CENTER_VERTICAL.ordinal())];
 
         mLayoutMode = CoverFlowLayoutMode.values()[a.getInt(
-                R.styleable.ImageCoverFlowView_coverflowLayoutMode,
-                CoverFlowLayoutMode.WRAP_CONTENT.ordinal())];
+            R.styleable.ImageCoverFlowView_coverflowLayoutMode,
+            CoverFlowLayoutMode.WRAP_CONTENT.ordinal())];
 
         a.recycle();
     }
@@ -260,10 +256,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         mCoverFlowPadding = new Rect();
 
         mDrawFilter = new PaintFlagsDrawFilter(0, Paint.ANTI_ALIAS_FLAG
-                | Paint.FILTER_BITMAP_FLAG);
+            | Paint.FILTER_BITMAP_FLAG);
 
         mScroller = new Scroller(getContext(),
-                new AccelerateDecelerateInterpolator());
+            new AccelerateDecelerateInterpolator());
     }
 
     /**
@@ -291,7 +287,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             }
         }
 
-        mOffset = 0;
+        /* initial scroll offset to show the first item in the middle */
+        mOffset = -mHalfVisibleImageCount;
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "setAdapter: mOffset=" + mOffset
+                + ", mHalfVisibleImageCount=" + mHalfVisibleImageCount);
+        }
 
         resetCoverFlow();
 
@@ -308,19 +309,19 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
     private void resetCoverFlow() {
 
-        if (mItemCount < 3) {
+        if (mItemCount < MIN_VISIBLE_IMAGES) {
             throw new IllegalArgumentException(
-                    "total count in adapter must larger than 3!");
+                "total count in adapter must not be less than 3!");
         }
 
-        final int totalVisible = mVisibleImages * 2 + 1;
+        final int totalVisible = mHalfVisibleImageCount * 2 + 1;
         if (mItemCount < totalVisible) {
-            mVisibleImages = (mItemCount - 1) / 2;
+            mHalfVisibleImageCount = (mItemCount - 1) / 2;
         }
 
         mChildHeight = 0;
 
-        STANDARD_ALPHA = (255 - ALPHA_DATUM) / mVisibleImages;
+        STANDARD_ALPHA = (255 - ALPHA_DATUM) / mHalfVisibleImageCount;
 
         if (mGravity == null) {
             mGravity = CoverFlowGravity.CENTER_VERTICAL;
@@ -366,27 +367,34 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         int heightSize = MeasureSpec.getSize(heightMeasureSpec);
 
         int availableHeight = heightSize - mCoverFlowPadding.top
-                - mCoverFlowPadding.bottom;
+            - mCoverFlowPadding.bottom;
 
         int maxChildTotalHeight = 0;
 
-        int visibleCount = (mVisibleImages << 1) + 1;
+        int totalVisibleCount = (mHalfVisibleImageCount << 1) + 1;
         int mid = (int) Math.floor(mOffset + 0.5);
-        int leftChild = visibleCount >> 1;
+        int leftChild = totalVisibleCount >> 1;
         final int startPos = getActuallyPosition(mid - leftChild);
 
-        for (int i = startPos; i < visibleCount + startPos; ++i) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "onMeasure: startPos=" + startPos
+                + ", mid=" + mid
+                + ", leftChild=" + leftChild
+                + ", mOffset=" + mOffset);
+        }
+
+        for (int i = startPos; i < totalVisibleCount + startPos; ++i) {
             Bitmap child = mAdapter.getImage(i);
             final int childHeight = child.getHeight();
             final int childTotalHeight = (int) (childHeight + childHeight
-                    * reflectHeightFraction + reflectGap);
+                * reflectHeightFraction + reflectGap);
 
             maxChildTotalHeight = (maxChildTotalHeight < childTotalHeight) ? childTotalHeight
-                    : maxChildTotalHeight;
+                : maxChildTotalHeight;
         }
 
         if (heightMode == MeasureSpec.EXACTLY
-                || heightMode == MeasureSpec.AT_MOST) {
+            || heightMode == MeasureSpec.AT_MOST) {
             // if height which parent provided is less than child need, scale
             // child height to parent provide
             if (availableHeight < maxChildTotalHeight) {
@@ -405,7 +413,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
                     // adjust parent's height
                     if (heightMode == MeasureSpec.AT_MOST) {
                         heightSize = mChildHeight + mCoverFlowPadding.top
-                                + mCoverFlowPadding.bottom;
+                            + mCoverFlowPadding.bottom;
                     }
                 }
             }
@@ -418,7 +426,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
                 // adjust parent's height
                 heightSize = mChildHeight + mCoverFlowPadding.top
-                        + mCoverFlowPadding.bottom;
+                    + mCoverFlowPadding.bottom;
             }
         }
 
@@ -429,13 +437,13 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             mChildTranslateY = mCoverFlowPadding.top;
         } else if (mGravity == CoverFlowGravity.BOTTOM) {
             mChildTranslateY = heightSize - mCoverFlowPadding.bottom
-                    - mChildHeight;
+                - mChildHeight;
         }
         mReflectionTranslateY = (int) (mChildTranslateY + mChildHeight - mChildHeight
-                * reflectHeightFraction);
+            * reflectHeightFraction);
 
         setMeasuredDimension(widthSize, heightSize);
-        mVisibleChildCount = visibleCount;
+        mVisibleChildCount = totalVisibleCount;
         mWidth = widthSize;
     }
 
@@ -463,7 +471,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         int mid = (int) Math.floor(offset + 0.5);
 
         int rightChild = (mVisibleChildCount % 2 == 0) ? (mVisibleChildCount >> 1) - 1
-                : mVisibleChildCount >> 1;
+            : mVisibleChildCount >> 1;
         int leftChild = mVisibleChildCount >> 1;
 
         // draw the left children
@@ -509,7 +517,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             if (reflection != null) {
 
                 canvas.drawBitmap(reflection, mReflectionTransformer,
-                        mDrawChildPaint);
+                    mDrawChildPaint);
             }
         }
     }
@@ -527,49 +535,49 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         mChildTransformer.reset();
         mReflectionTransformer.reset();
 
-        float scale = 0;
-        //this scale make sure that each image will be smaller than the
-        //previous one
-        if (position != mid) {
-            scale = 1 - Math.abs(offset) * 0.25f;
-        } else {
-            scale = 1 - Math.abs(offset) * CARD_SCALE;
-        }
-        //float scale = 1 - Math.abs(offset) * CARD_SCALE;
+        //this scale make sure that each image will be smaller than the previous one
+//        float scale = 0;
+//        if (position != mid) {
+//            scale = 1 - Math.abs(offset) * 0.25f;
+//        } else {
+//            scale = 1 - Math.abs(offset) * CARD_SCALE;
+//        }
+        float scale = 1 - Math.abs(offset) * CARD_SCALE;
         // 延x轴移动的距离应该根据center图片决定
         float translateX = 0;
 
         final int originalChildHeight = (int) (mChildHeight - mChildHeight
-                * reflectHeightFraction - reflectGap);
+            * reflectHeightFraction - reflectGap);
         final int childTotalHeight = (int) (child.getHeight()
-                + child.getHeight() * reflectHeightFraction + reflectGap);
+            + child.getHeight() * reflectHeightFraction + reflectGap);
 
         final float originalChildHeightScale = (float) originalChildHeight
-                / child.getHeight();
+            / child.getHeight();
         final float childHeightScale = originalChildHeightScale * scale;
         final int childWidth = (int) (child.getWidth() * childHeightScale);
         final int centerChildWidth = (int) (child.getWidth() * originalChildHeightScale);
         int leftSpace = ((mWidth >> 1) - mCoverFlowPadding.left)
-                - (centerChildWidth >> 1);
+            - (centerChildWidth >> 1);
         int rightSpace = (((mWidth >> 1) - mCoverFlowPadding.right) - (centerChildWidth >> 1));
 
         if (offset <= 0)
-            translateX = ((float) leftSpace / mVisibleImages)
-                    * (mVisibleImages + offset) + mCoverFlowPadding.left;
+            translateX = ((float) leftSpace / mHalfVisibleImageCount)
+                * (mHalfVisibleImageCount + offset) + mCoverFlowPadding.left;
 
         else
-            translateX = mWidth - ((float) rightSpace / mVisibleImages)
-                    * (mVisibleImages - offset) - childWidth
-                    - mCoverFlowPadding.right;
+            translateX = mWidth - ((float) rightSpace / mHalfVisibleImageCount)
+                * (mHalfVisibleImageCount - offset) - childWidth
+                - mCoverFlowPadding.right;
 
-        float alpha = (float) 254 - Math.abs(offset) * STANDARD_ALPHA;
+//        float alpha = (float) 254 - Math.abs(offset) * STANDARD_ALPHA;
+//
+//        if (alpha < 0) {
+//            alpha = 0;
+//        } else if (alpha > 254) {
+//            alpha = 254;
+//        }
 
-        if (alpha < 0) {
-            alpha = 0;
-        } else if (alpha > 254) {
-            alpha = 254;
-        }
-
+        float alpha = 254; // do not make image transparent
         mDrawChildPaint.setAlpha((int) alpha);
 
         mChildTransformer.preTranslate(0, -(childTotalHeight >> 1));
@@ -577,7 +585,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         mChildTransformer.postScale(childHeightScale, childHeightScale);
 
         if ((offset - (int) offset) == 0.0f) {
-            Log.e(VIEW_LOG_TAG, "offset=>" + offset + " scale=>" + childHeightScale);
+//            Log.e(TAG, "offset=>" + offset + " scale=>" + childHeightScale);
         }
 
         // if actually child height is larger or smaller than original child
@@ -589,22 +597,22 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         }
 
         mChildTransformer.postTranslate(translateX, mChildTranslateY
-                + adjustedChildTranslateY);
+            + adjustedChildTranslateY);
 
-        // Log.d(VIEW_LOG_TAG, "position= " + position + " mChildTranslateY= "
+        // Log.d(TAG, "position= " + position + " mChildTranslateY= "
         // + mChildTranslateY + adjustedChildTranslateY);
 
         getCustomTransformMatrix(mChildTransformer, mDrawChildPaint, child,
-                position, offset);
+            position, offset);
 
         mChildTransformer.postTranslate(0, (childTotalHeight >> 1));
 
         mReflectionTransformer.preTranslate(0, -(childTotalHeight >> 1));
         mReflectionTransformer.postScale(childHeightScale, childHeightScale);
         mReflectionTransformer.postTranslate(translateX, mReflectionTranslateY
-                * scale + adjustedChildTranslateY);
+            * scale + adjustedChildTranslateY);
         getCustomTransformMatrix(mReflectionTransformer, mDrawChildPaint,
-                child, position, offset);
+            child, position, offset);
         mReflectionTransformer.postTranslate(0, (childTotalHeight >> 1));
     }
 
@@ -640,58 +648,89 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         final int[] wAndh = mImageRecorder.get(position);
 
         final int heightInView = (int) (mChildHeight - mChildHeight
-                * reflectHeightFraction - reflectGap);
+            * reflectHeightFraction - reflectGap);
         final float scale = (float) heightInView / wAndh[1];
         final int widthInView = (int) (wAndh[0] * scale);
 
-        Log.e(VIEW_LOG_TAG, "height ==>" + heightInView + " width ==>"
-                + widthInView);
+//        Log.e(TAG, "height ==>" + heightInView + " width ==>"
+//                + widthInView);
 
         mTouchRect.left = (mWidth >> 1) - (widthInView >> 1);
         mTouchRect.top = mChildTranslateY;
         mTouchRect.right = mTouchRect.left + widthInView;
         mTouchRect.bottom = mTouchRect.top + heightInView;
 
-        Log.e(VIEW_LOG_TAG, "rect==>" + mTouchRect);
+//        Log.e(TAG, "rect==>" + mTouchRect);
 
         if (mCoverFlowListener != null) {
             mCoverFlowListener.imageOnTop(this, position, mTouchRect.left,
-                    mTouchRect.top, mTouchRect.right, mTouchRect.bottom);
+                mTouchRect.top, mTouchRect.right, mTouchRect.bottom);
         }
     }
 
+    private static final float MIN_SCROLL_DISTANCE = 10f;
+    private float downX = 0f;
+    private float downY = 0f;
+    private float deltaX = 0f;
+    private float deltaY = 0f;
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (getParent() != null) {
-            getParent().requestDisallowInterceptTouchEvent(true);
-        }
-
         int action = event.getAction();
         switch (action) {
             case MotionEvent.ACTION_DOWN:
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+//                    Log.d(TAG, "onTouchEvent: down, requestDisallow = true");
+                }
                 if (mScroller.computeScrollOffset()) {
                     mScroller.abortAnimation();
                     invalidate();
                 }
+                deltaX = 0f;
+                deltaY = 0f;
+                downX = event.getX();
+                downY = event.getY();
+
                 stopLongClick();
                 triggleLongClick(event.getX(), event.getY());
                 touchBegan(event);
+//                Log.d(TAG, "onTouchEvent: down, touchBegan");
                 return true;
+
             case MotionEvent.ACTION_MOVE:
+                deltaX = Math.abs(downX - event.getX());
+                deltaY = Math.abs(downY - event.getY());
+
+                /* ignore vertical scroll */
+                if (deltaX > MIN_SCROLL_DISTANCE &&
+                    deltaY > MIN_SCROLL_DISTANCE &&
+                    deltaX < deltaY) {
+                    if (getParent() != null) {
+                        getParent().requestDisallowInterceptTouchEvent(false);
+//                        Log.d(TAG, "onTouchEvent: move, requestDisallow = false");
+                    }
+                    return false;
+                }
+
                 touchMoved(event);
                 return true;
+
             case MotionEvent.ACTION_UP:
                 touchEnded(event);
+//                Log.d(TAG, "onTouchEvent: up, touchEnded");
                 stopLongClick();
                 return true;
+            case MotionEvent.ACTION_CANCEL:
+//                Log.d(TAG, "onTouchEvent: cancel");
+                return false;
         }
-
         return false;
     }
 
     private void triggleLongClick(float x, float y) {
         if (mTouchRect.contains(x, y) && mLongClickListener != null
-                && topImageClickEnable && !mLongClickPosted) {
+            && topImageClickEnable && !mLongClickPosted) {
             final int actuallyPosition = mTopImageIndex;
 
             mLongClickRunnable.setPosition(actuallyPosition);
@@ -768,12 +807,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
             startAnimation(-speed);
         } else {
-            Log.e(VIEW_LOG_TAG,
-                    " touch ==>" + event.getX() + " , " + event.getY());
+//            Log.e(TAG,
+//                    " touch ==>" + event.getX() + " , " + event.getY());
             if (mTouchRect != null) {
                 if (mTouchRect.contains(event.getX(), event.getY())
-                        && mCoverFlowListener != null && topImageClickEnable
-                        && !mLongClickTriggled) {
+                    && mCoverFlowListener != null && topImageClickEnable
+                    && !mLongClickTriggled) {
                     final int actuallyPosition = mTopImageIndex;
 
                     mCoverFlowListener.topImageClicked(this, actuallyPosition);
@@ -797,7 +836,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         nearest = Math.floor(nearest + 0.5);
 
         mStartSpeed = (float) Math.sqrt(Math.abs(nearest - mStartOffset)
-                * FRICTION * 2);
+            * FRICTION * 2);
         if (nearest < mStartOffset)
             mStartSpeed = -mStartSpeed;
 
@@ -839,7 +878,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             elapsed = mDuration;
 
         float delta = Math.abs(mStartSpeed) * elapsed - FRICTION * elapsed
-                * elapsed / 2;
+            * elapsed / 2;
         if (mStartSpeed < 0)
             delta = -delta;
 
@@ -860,7 +899,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         int max = mAdapter.getCount();
 
-        position += mVisibleImages;
+        position += mHalfVisibleImageCount;
         while (position < 0 || position >= max) {
             if (position < 0) {
                 position += max;
@@ -883,7 +922,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             mRecycler.removeReflectionCache(src);
 
             reflection = BitmapUtils.createReflectedBitmap(src,
-                    reflectHeightFraction);
+                reflectHeightFraction);
 
             if (reflection != null) {
                 mRecycler.buildReflectionCache(src, reflection);
@@ -895,19 +934,22 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         return reflection;
     }
 
-    public void setVisibleImage(int count) {
-        if (count % 2 == 0) {
+    public void setVisibleImage(int totalVisibleCount) {
+        if (totalVisibleCount % 2 == 0) {
             throw new IllegalArgumentException(
-                    "visible image must be an odd number");
+                "visible image must be an odd number");
         }
 
-        if (count < 3) {
+        if (totalVisibleCount < 3) {
             throw new IllegalArgumentException(
-                    "visible image must larger than 3");
+                "visible image must larger than 3");
         }
 
-        mVisibleImages = count / 2;
-        STANDARD_ALPHA = (255 - ALPHA_DATUM) / mVisibleImages;
+        mHalfVisibleImageCount = totalVisibleCount / 2;
+        STANDARD_ALPHA = (255 - ALPHA_DATUM) / mHalfVisibleImageCount;
+
+        /* update initial scroll offset when visible count changed */
+        mOffset = -mHalfVisibleImageCount;
     }
 
     public void setCoverFlowGravity(CoverFlowGravity gravity) {
@@ -946,7 +988,7 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
         final int max = mAdapter.getCount();
         if (position < 0 || position >= max) {
             throw new IllegalArgumentException(
-                    "Position want to select can not less than 0 or larger than max of adapter provide!");
+                "Position want to select can not less than 0 or larger than max of adapter provide!");
         }
 
         if (mTopImageIndex != position) {
@@ -955,16 +997,16 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
             }
 
             final int from = (int) (mOffset * 100);
-            final int disX = (int) ((position - mVisibleImages) * 100) - from;
+            final int disX = (int) ((position - mHalfVisibleImageCount) * 100) - from;
             mScroller.startScroll(
-                    from,
-                    0,
-                    disX,
-                    0,
-                    DURATION
-                            * Math.min(
-                            Math.abs(position + max - mTopImageIndex),
-                            Math.abs(position - mTopImageIndex)));
+                from,
+                0,
+                disX,
+                0,
+                DURATION
+                    * Math.min(
+                    Math.abs(position + max - mTopImageIndex),
+                    Math.abs(position - mTopImageIndex)));
 
             invalidate();
         }
@@ -1022,14 +1064,10 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
     class RecycleBin {
 
         final LruCache<Integer, Bitmap> bitmapCache = new LruCache<Integer, Bitmap>(
-                getCacheSize(getContext())) {
+            getCacheSize(getContext())) {
             @Override
             protected int sizeOf(Integer key, Bitmap bitmap) {
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB_MR1) {
-                    return bitmap.getRowBytes() * bitmap.getHeight();
-                } else {
-                    return bitmap.getByteCount();
-                }
+                return BitmapCompat.getAllocationByteCount(bitmap);
             }
 
             @Override
@@ -1065,12 +1103,12 @@ public class CoverFlowView<T extends CoverFlowAdapter> extends View {
 
         private int getCacheSize(Context context) {
             final ActivityManager am = (ActivityManager) context
-                    .getSystemService(Context.ACTIVITY_SERVICE);
+                .getSystemService(Context.ACTIVITY_SERVICE);
             final int memClass = am.getMemoryClass();
             // Target ~5% of the available heap.
             int cacheSize = 1024 * 1024 * memClass / 21;
 
-            Log.e(VIEW_LOG_TAG, "cacheSize == " + cacheSize);
+//            Log.e(TAG, "cacheSize == " + cacheSize);
             return cacheSize;
         }
     }
