@@ -1,16 +1,13 @@
 # ImageCoverFlow
 
-#### To show Cover Flow effect on Android
+#### A beautiful cover flow on Android
 
-ImageCoverFlow is an open source Android library that allows developers to easily create applications with a cover flow effect to show images. This library does not extend Gallery. Feel free to use it all you want in your Android apps provided that you cite this project and include the license in your app.
+ImageCoverFlow allows you to show images as a cover flow. See the screenshot below.
 
-**Note**: looping mode is currently supported, non-looping mode will be supported later.
+Forked from [dolphinwang/ImageCoverFlow](https://github.com/dolphinwang/ImageCoverFlow).
 
-![Oops! The screenshot is missing!](https://github.com/dolphinwang/ImageCoverFlow/raw/master/imagecoverflow_screenshot.png)
 
-#### ImageCoverFlow is currently used in some published Android apps:
-
-1. [ICardEnglish](https://play.google.com/store/apps/details?id=com.cn.icardenglish&hl=zh_CN)
+![Oops! The screenshot is missing!](https://github.com/xszconfig/ImageCoverFlow/raw/master/imagecoverflow_screenshot.png)
 
 ---
 
@@ -107,17 +104,9 @@ Users can use method `setSelection()` to show a specific position at the top.
 
 ---
 
-#### Developed By:
-
-Roy Wang (dolphinwang@foxmail.com)
-
-If you use this library, please let me know.
-
----
-
 #### License:
 
-Copyright 2013 Roy Wang
+Copyright 2016 Daniel Xie (xszconfig@gmail.com)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
